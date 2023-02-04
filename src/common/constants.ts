@@ -20,3 +20,5 @@ export const MESH_MATERIAL = new Three.MeshLambertMaterial({
     emissive: new Three.Color(POINT_ANNOTATION_COLOR),
     emissiveIntensity: 0.8,
 });
+
+export const Area_Heatmap_Radius = 0.7;

@@ -1,13 +1,32 @@
 import React from "react";
-import { Visualizer, AnnotationBar } from './viewer'
-import { Annotation } from "@external-lib";
 import * as Three from "three";
+import { MeshLambertMaterial } from "three";
+import { Select } from "antd";
 
+import {
+    SimpleVector2,
+    SimpleVectorWithNormal,
+    SimpleFaceWithNormal,
+    MAXIMUM_INTENSITY,
+} from "@external-lib";
+
+import {
+    AnnotationExtends,
+    // visitAnnotationExtends,
+    AreaAnnotationExtends,
+    HeatmapAnnotationExtends,
+    PathAnnotationExtends,
+    // GroupAnnotationExtends,
+    PointAnnotationExtends,
+} from 'user-types'
+
+import { Visualizer, AnnotationBar } from './viewer'
+import { Area_Heatmap_Radius } from './common/constants';
 interface AppLayoutProps {
     /**
      * The 3D model to display. This is loaded outside of the component, and the prop value never changes.
      */
-    model: Three.Object3D<Three.Event>;
+    model: Three.Mesh;
 }
 
 export function AppLayout({
@@ -16,11 +35,11 @@ export function AppLayout({
     /**
      * all annotations. This means virtual annotation database.
      */
-    const [annotations, setAnnotations] = React.useState([] as Annotation[]);
+    const [annotations, setAnnotations] = React.useState([] as AnnotationExtends[]);
     /**
      * This means annotation set on the model by user.
      */
-    const [currentAnnotation, setCurrentAnnotation] = React.useState({} as Annotation);
+    const [currentAnnotation, setCurrentAnnotation] = React.useState({} as AnnotationExtends);
     /**
      * This means annotation type set in the current time.
      */
@@ -32,25 +51,33 @@ export function AppLayout({
     /**
      * This means selected and unselected annotation control.
      */
-    const [selectedAnnotation, setSelectedAnnotation] = React.useState({} as Annotation);
+    const [selectedAnnotation, setSelectedAnnotation] = React.useState({} as AnnotationExtends);
     /**
      * This means search string input by user in the current time.
      */
     const [search, setSearch] = React.useState('' as string);
+    /**
+     * This is for selection of the show mode
+     */
+    const [viewMode, setViewMode] = React.useState<string>('orbit');
+    /**
+     * This state is called when annotation is hidden or deleted or searched.
+     */
+    const [delOrHide, setDelOrHide] = React.useState<boolean>(false);
 
     /**
      * useEffect function when call by following controlStatus and annotations's changing.
      */
     React.useEffect(() => {
         if (controlStatus === 'normal')
-            setCurrentAnnotation({} as Annotation);
+            setCurrentAnnotation({} as AnnotationExtends);
     }, [controlStatus, annotations]);
 
     /**
      * useEffect function when call by following annotation type's changing.
      */
     React.useEffect(() => {
-        setAnnotations([] as Annotation[]);
+        setAnnotations([] as AnnotationExtends[]);
         setTimeout(function() {
             setAnnotations([...annotations]);
         }, 100);
@@ -61,7 +88,7 @@ export function AppLayout({
      * @param a Annotation
      * @returns
      */
-    const selectAnnotation = (a: Annotation) => {
+    const selectAnnotation = (a: AnnotationExtends) => {
         if (controlStatus === 'annotation') {
             const date = new Date();
             a.id = date.valueOf();
@@ -96,10 +123,10 @@ export function AppLayout({
      * @param annotation Annotation
      * @returns
      */
-    const removeAnnotation = (annotation: Annotation) => {
+    const removeAnnotation = (annotation: AnnotationExtends) => {
         let _annotations = [...annotations];
 
-        setAnnotations([] as Annotation[]);
+        setAnnotations([] as AnnotationExtends[]);
         setTimeout(function() {
             if (!annotation.title) {
                 setAnnotations(_annotations.filter(a => a.id !== currentAnnotation.id));
@@ -115,12 +142,12 @@ export function AppLayout({
      * @param annotation Annotation
      * @returns
      */
-    const updateAnnotation = (annotation: Annotation) => {
+    const updateAnnotation = (annotation: AnnotationExtends) => {
         let _annotations = [...annotations];
         _annotations = _annotations.map(a => {
             return (a.id === annotation.id) ? annotation : a;
         });
-        setAnnotations([] as Annotation[]);
+        setAnnotations([] as AnnotationExtends[]);
         setTimeout(function() {
             setAnnotations(_annotations);
         }, 100);
@@ -135,6 +162,7 @@ export function AppLayout({
      */
     const updateAnnotationType = (value: string) => {
         setAnnotationType(value)
+        setDelOrHide(true);
     }
 
     /**
@@ -152,7 +180,7 @@ export function AppLayout({
      * @param key string
      * @returns
      */
-    const selectAnnotationControl = (annotation: Annotation, key: string) => {
+    const selectAnnotationControl = (annotation: AnnotationExtends, key: string) => {
         if (key === 'select') {
             let _annotations = [...annotations];
             _annotations = _annotations.map(a => {
@@ -169,7 +197,7 @@ export function AppLayout({
         }
         else {
             updateAnnotation(Object.assign({...annotation}, {select: false}));
-            setSelectedAnnotation({} as Annotation);
+            setSelectedAnnotation({} as AnnotationExtends);
         }
     }
 
@@ -180,7 +208,7 @@ export function AppLayout({
      */
     const changeSearch = (value: string) => {
         setSearch(value);
-
+        setDelOrHide(true);
         const viewAnnotation = annotations.filter(a => a.title.indexOf(value) === 0);
         if (viewAnnotation.length === 1 && viewAnnotation[0].display) {
             updateAnnotation(Object.assign({...viewAnnotation[0]}, {select: true}));
@@ -199,8 +227,98 @@ export function AppLayout({
         setAnnotations(_annotations);
     }
 
+    /**
+     * called when show all checkbox is checked.
+     * @param worldPositionAndNormal SimpleVectorWithNormal
+     * @param screenPosition SimpleVector2
+     * @param annoMaterial MeshLambertMaterial
+     * @returns
+     */
+    const handleMouseRightClicked = (worldPositionAndNormal : SimpleVectorWithNormal,
+        screenPosition: SimpleVector2, annoMaterial: MeshLambertMaterial) => {
+        switch (annotationType) {
+            case 'point':
+                selectAnnotation({
+                    type: "point",
+                    location: {
+                        x: worldPositionAndNormal.x, y: worldPositionAndNormal.y, z: worldPositionAndNormal.z
+                    } as SimpleVectorWithNormal,
+                    face: worldPositionAndNormal as unknown as SimpleFaceWithNormal,
+                    material: annoMaterial, 
+                    data: {
+                        type: 'basic'
+                    },
+                    display: true,
+                    select: false
+                } as PointAnnotationExtends);
+                break;
+            case 'area':
+                selectAnnotation({
+                    type: "area",
+                    center: {
+                        x: worldPositionAndNormal.x, y: worldPositionAndNormal.y, z: worldPositionAndNormal.z,
+                    } as SimpleVectorWithNormal,
+                    location: {
+                        x: worldPositionAndNormal.x, y: worldPositionAndNormal.y, z: worldPositionAndNormal.z,
+                    } as SimpleVectorWithNormal,
+                    face: worldPositionAndNormal as unknown as SimpleFaceWithNormal,
+                    material: annoMaterial, 
+                    radius: Area_Heatmap_Radius,
+                    data: {
+                        type: 'basic'
+                    },
+                    display: true,
+                    select: false
+                } as AreaAnnotationExtends);
+                break;
+            case 'heatmap':
+                selectAnnotation({
+                    type: "heatmap",
+                    location: {
+                        x: worldPositionAndNormal.x, y: worldPositionAndNormal.y, z: worldPositionAndNormal.z
+                    } as SimpleVectorWithNormal,
+                    face: worldPositionAndNormal as unknown as SimpleFaceWithNormal,
+                    material: annoMaterial, 
+                    data: {
+                        type: 'heatmap',
+                        radius: Area_Heatmap_Radius,
+                        intensity: MAXIMUM_INTENSITY,
+                    },
+                    display: true,
+                    select: false
+                } as HeatmapAnnotationExtends);
+                break;
+            case 'Group':
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
+     * called when show all checkbox is checked.
+     * @param ev string
+     * @return
+     */
+    const changeViewMode = (ev: string) => {
+        setViewMode(ev);
+    };
+
+
     return (
         <div style={{'height': '100%'}}>
+            <div style={{ width: '200px', marginRight: 10, position: "absolute", top: 30, left: 20, zIndex: 100}}>
+                <p>Select view mode</p>
+                <Select
+                    defaultValue={'orbit'}
+                    style={{ width: 120, marginRight: 10}}
+                    onChange={changeViewMode}
+                    options={[
+                        { value: 'orbit', label: 'camera 1', selected: true},
+                        { value: 'custom', label: 'camera 2' },
+                    ]}
+                />
+            </div>
             <AnnotationBar
                 insertAnnotation = {insertAnnotation}
                 updateAnnotation = {updateAnnotation}
@@ -212,18 +330,22 @@ export function AppLayout({
                 selectAnnotationControl = {selectAnnotationControl}
                 checkAllChange = {checkAllChange}
                 changeSearch = {changeSearch}
+                setDelOrHide={setDelOrHide}
             />
             <Visualizer
                 disableInteractions={false}
                 model = {model}
-                annotations = {annotations.filter(a => a.type === annotationType && (!search || a.title.indexOf(search) === 0) && a.display)}
+                annotations = {annotations.filter(a => { 
+                    return (a.title? a.type === annotationType && (!search || a.title.indexOf(search) === 0) && a.display : true)})}
                 layerDepth = {1}
-                annotationType = {annotationType}
                 onReady = {() => {}}
                 onClick = {()=>{}}
-                onRightClick = {() =>{}}
-                selectAnnotation = {selectAnnotation}
+                onRightClick = {handleMouseRightClicked}
                 selectedAnnotation = {selectedAnnotation}
+                currentState = {controlStatus}
+                viewMode={viewMode}
+                setDelOrHide={setDelOrHide}
+                delOrHide={delOrHide}
             />
         </div>
     );

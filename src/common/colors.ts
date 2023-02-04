@@ -2,7 +2,7 @@ import { isInRange, MAXIMUM_INTENSITY, MINIMUM_INTENSITY, IntensityValue } from 
 import { color as createColor, ColorHelper, rgb } from "csx/lib/color";
 import { findTween, getTween } from "../utils/tweenUtils";
 
-export const SCENE_BACKGROUND_COLOR = "#7b89a2";
+export const SCENE_BACKGROUND_COLOR = "#ccc";
 export const DEFAULT_ANNOTATION_COLOR = "#fff";
 export const POINT_ANNOTATION_COLOR = "#f00";
 
@@ -13,6 +13,8 @@ const HEATMAP_COLORS = [
     [0.8, createColor("#f6a385")],
     [1.0, createColor("#b40426")],
 ] as const;
+
+export const MODEL_PRIMITIVE_COLOR = '#FFFFFF';
 
 export const AREA_ANNOTATION_COLOR = "#1483fe";
 
